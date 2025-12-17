@@ -1,28 +1,40 @@
-# ---------- BUILD ----------
+# ====== build stage ======
 FROM node:20-alpine AS build
-
 WORKDIR /app
 
-# Lepsze cache warstw
+# zależności (npm install działa także bez package-lock.json)
 COPY package*.json ./
-# Jeśli używasz pnpm/yarn – zmień odpowiednio
-RUN npm ci
+RUN npm install
 
+# kod
 COPY . .
+
+# build Vite (generuje /dist)
 RUN npm run build
 
 
-# ---------- RUNTIME ----------
-FROM nginx:1.27-alpine
+# ====== runtime stage ======
+FROM nginx:alpine
 
-# Podmień domyślną konfigurację serwera
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+# Konfiguracja nginx dla SPA (React) na porcie 80
+RUN rm -f /etc/nginx/conf.d/default.conf && \
+    printf '%s\n' \
+'server {' \
+'  listen 80;' \
+'  server_name _;' \
+'' \
+'  root /usr/share/nginx/html;' \
+'  index index.html;' \
+'' \
+'  # SPA routing: gdy nie ma pliku, oddaj index.html' \
+'  location / {' \
+'    try_files $uri $uri/ /index.html;' \
+'  }' \
+'}' \
+> /etc/nginx/conf.d/app.conf
 
-# Skopiuj zbudowaną apkę (Vite -> dist)
+# statyczne pliki z builda
 COPY --from=build /app/dist /usr/share/nginx/html
 
 EXPOSE 80
-
-# Healthcheck (opcjonalnie)
-HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-  CMD wget -qO- http://127.0.0.1/ > /dev/null || exit 1
+CMD ["nginx", "-g", "daemon off;"]
