@@ -1,0 +1,16 @@
+version: '3.8'
+
+services:
+  infopoint-kiosk:
+    build:
+      context: .
+    container_name: infopoint_kiosk
+    restart: always
+    ports:
+      - "8081:80"
+    networks:
+      - kiosk-network
+
+networks:
+  kiosk-network:
+    driver: bridge
